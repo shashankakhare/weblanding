@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Sign In - Digital Dreams Inc.</title>
+<link rel="stylesheet" href="assets/css/app.css" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+</head>
+<body>
+<div class="aurora"><div class="blob-3"></div></div>
+<div class="grid-dots"></div>
+
+<div style="min-height:100vh;display:grid;place-items:center;padding:24px;">
+  <div class="glass" style="padding:48px;width:100%;max-width:440px;">
+    <a href="index.html" class="logo" style="justify-content:center;margin-bottom:24px;">
+      <span class="logo-dot"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></span>
+      Digital Dreams
+    </a>
+    <div style="display:flex;gap:6px;background:rgba(255,255,255,0.05);padding:4px;border-radius:12px;margin-bottom:24px;">
+      <button class="btn btn-sm" data-tab="login" style="flex:1;background:linear-gradient(135deg,#6366f1,#a855f7);">Sign In</button>
+      <button class="btn btn-sm" data-tab="register" style="flex:1;background:transparent;color:var(--muted);">Register</button>
+    </div>
+
+    <form id="authForm">
+      <div class="field" id="nameField" style="display:none;"><label>Name</label><input class="input" name="name" /></div>
+      <div class="field"><label>Email</label><input class="input" name="email" type="email" required /></div>
+      <div class="field"><label>Password</label><input class="input" name="password" type="password" required /></div>
+      <button type="submit" class="btn btn-primary" style="width:100%;">Continue</button>
+    </form>
+
+    <div style="text-align:center;margin-top:20px;color:var(--muted);font-size:13px;">
+      <p>Demo admin: <b>admin@digitaldreams.com</b> / <b>admin123</b></p>
+    </div>
+  </div>
+</div>
+
+<script src="assets/js/api.js"></script>
+<script>
+let tab = new URLSearchParams(location.search).get('tab') || 'login';
+function setTab(t) {
+  tab = t;
+  document.querySelectorAll('[data-tab]').forEach(b => {
+    if (b.dataset.tab === t) { b.style.background = 'linear-gradient(135deg,#6366f1,#a855f7)'; b.style.color = 'white'; }
+    else { b.style.background = 'transparent'; b.style.color = 'var(--muted)'; }
+  });
+  $('#nameField').style.display = t === 'register' ? 'block' : 'none';
+  $('#authForm button[type=submit]').textContent = t === 'register' ? 'Create Account' : 'Sign In';
+}
+document.querySelectorAll('[data-tab]').forEach(b => b.addEventListener('click', (e) => { e.preventDefault(); setTab(b.dataset.tab); }));
+setTab(tab);
+
+$('#authForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const data = Object.fromEntries(new FormData(e.target).entries());
+  const btn = e.target.querySelector('button'); btn.disabled = true;
+  try {
+    const r = await api('auth/' + tab, { method: 'POST', body: data });
+    toast('Welcome ' + (r.user.name || r.user.email), 'success');
+    setTimeout(() => { location.href = r.user.role === 'admin' ? 'admin.html' : 'dashboard.html'; }, 400);
+  } catch (err) { toast(err.message, 'error'); btn.disabled = false; }
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Invoice - Digital Dreams Inc.</title>
+<link rel="stylesheet" href="assets/css/app.css" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<style>@media print { .no-print { display: none !important; } body { background: white; color: black; } .aurora, .grid-dots { display: none; } .glass { background: white; border: 1px solid #ddd; box-shadow: none; } }</style>
+</head>
+<body>
+<div class="aurora"></div>
+<div class="container" style="padding:60px 24px;max-width:800px;">
+  <div class="no-print" style="display:flex;justify-content:space-between;margin-bottom:24px;">
+    <a href="dashboard.html" class="btn btn-ghost btn-sm">← Back</a>
+    <button class="btn btn-primary btn-sm" onclick="window.print()">Print / Save PDF</button>
+  </div>
+  <div id="invBox" class="glass" style="padding:48px;"><p class="text-muted">Loading…</p></div>
+</div>
+
+<script src="assets/js/api.js"></script>
+<script>
+const id = new URLSearchParams(location.search).get('id');
+if (id) {
+  api('invoices/get&id=' + id).then(({ invoice: inv, company }) => {
+    $('#invBox').innerHTML = `
+      <div style="display:flex;justify-content:space-between;margin-bottom:32px;">
+        <div>
+          <div style="font-size:26px;font-weight:800;" class="gradient-text">${company.name}</div>
+          <div class="text-muted" style="font-size:13px;">${company.address || ''}</div>
+          <div class="text-muted" style="font-size:13px;">${company.email} • ${company.phone}</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:22px;font-weight:800;">INVOICE</div>
+          <div class="text-muted" style="font-size:13px;">${inv.invoiceNumber}</div>
+          <div class="text-muted" style="font-size:13px;">${fmtDate(inv.createdAt)}</div>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:24px;">
+        <div><div class="text-muted" style="font-size:12px;text-transform:uppercase;">Billed To</div><div style="font-weight:700;margin-top:4px;">${inv.customerName}</div><div style="font-size:14px;">${inv.customerEmail}</div>${inv.customerCompany ? `<div class="text-muted" style="font-size:13px;">${inv.customerCompany}</div>` : ''}</div>
+        <div><div class="text-muted" style="font-size:12px;text-transform:uppercase;">Reference</div><div style="font-weight:700;margin-top:4px;">Order ${inv.orderNumber}</div><div class="text-muted" style="font-size:13px;">Payment: ${inv.paymentMethod}</div></div>
+      </div>
+      <table class="table" style="margin:24px 0;"><thead><tr><th>Item</th><th style="text-align:right;">Amount</th></tr></thead><tbody>
+        ${inv.items.map(i => `<tr><td>${i.name}</td><td style="text-align:right;">$${fmt(i.price)}</td></tr>`).join('')}
+      </tbody></table>
+      <div style="margin-left:auto;width:280px;">
+        <div style="display:flex;justify-content:space-between;padding:4px 0;color:var(--muted);"><span>Subtotal</span><span>$${fmt(inv.subtotal)}</span></div>
+        ${inv.discount > 0 ? `<div style="display:flex;justify-content:space-between;padding:4px 0;color:#4ade80;"><span>Discount ${inv.couponCode ? '(' + inv.couponCode + ')' : ''}</span><span>-$${fmt(inv.discount)}</span></div>` : ''}
+        <div style="display:flex;justify-content:space-between;padding:4px 0;color:var(--muted);"><span>Tax (${inv.taxRate}%)</span><span>$${fmt(inv.tax)}</span></div>
+        <div style="display:flex;justify-content:space-between;padding:12px 0;border-top:1px solid var(--border);margin-top:8px;font-size:20px;font-weight:800;"><span>Total</span><span class="gradient-text">$${fmt(inv.total)}</span></div>
+        <div style="text-align:center;margin-top:8px;"><span class="pill pill-paid">Paid</span></div>
+      </div>
+      <p class="text-muted" style="font-size:12px;margin-top:32px;text-align:center;">Thank you for your business.</p>
+    `;
+  }).catch(e => { $('#invBox').innerHTML = `<p style="color:#f87171;">${e.message}</p>`; });
+}
+</script>
+</body>
+</html>

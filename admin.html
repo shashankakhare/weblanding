@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Admin - Digital Dreams Inc.</title>
+<link rel="stylesheet" href="assets/css/app.css" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+</head>
+<body>
+<div class="aurora"></div>
+
+<div class="app-layout">
+  <aside class="sidebar">
+    <a href="index.html" class="logo" style="margin-bottom:16px;">
+      <span class="logo-dot"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></span>
+      Admin
+    </a>
+    <div style="font-size:11px;text-transform:uppercase;color:var(--muted);letter-spacing:0.05em;padding:8px 14px;">Overview</div>
+    <a class="sidebar-item active" data-page="stats">Dashboard</a>
+    <div style="font-size:11px;text-transform:uppercase;color:var(--muted);letter-spacing:0.05em;padding:12px 14px 4px;">Sales</div>
+    <a class="sidebar-item" data-page="orders">Orders</a>
+    <a class="sidebar-item" data-page="invoices">Invoices</a>
+    <a class="sidebar-item" data-page="payments">Payments</a>
+    <a class="sidebar-item" data-page="customers">Customers</a>
+    <a class="sidebar-item" data-page="users">Users</a>
+    <a class="sidebar-item" data-page="leads">Leads</a>
+    <a class="sidebar-item" data-page="newsletter">Newsletter</a>
+    <div style="font-size:11px;text-transform:uppercase;color:var(--muted);letter-spacing:0.05em;padding:12px 14px 4px;">Catalog</div>
+    <a class="sidebar-item" data-page="packages">Packages</a>
+    <a class="sidebar-item" data-page="addons">Add-ons</a>
+    <a class="sidebar-item" data-page="coupons">Coupons</a>
+    <div style="font-size:11px;text-transform:uppercase;color:var(--muted);letter-spacing:0.05em;padding:12px 14px 4px;">Content</div>
+    <a class="sidebar-item" data-page="testimonials">Testimonials</a>
+    <a class="sidebar-item" data-page="portfolio">Portfolio</a>
+    <a class="sidebar-item" data-page="blogs">Blog</a>
+    <a class="sidebar-item" data-page="email_templates">Email Templates</a>
+    <a class="sidebar-item" data-page="settings">Website Settings</a>
+    <div style="font-size:11px;text-transform:uppercase;color:var(--muted);letter-spacing:0.05em;padding:12px 14px 4px;">Support</div>
+    <a class="sidebar-item" data-page="support_tickets">Tickets</a>
+    <a class="sidebar-item" data-page="messages">Messages</a>
+    <div style="font-size:11px;text-transform:uppercase;color:var(--muted);letter-spacing:0.05em;padding:12px 14px 4px;">System</div>
+    <a class="sidebar-item" data-page="notifications">Notifications</a>
+    <a class="sidebar-item" data-page="activity_logs">Activity Log</a>
+    <a class="sidebar-item" data-page="email_logs">Email Logs</a>
+    <a class="sidebar-item" data-page="integrations">Integrations</a>
+    <a class="sidebar-item" data-page="backup">Backup / Export</a>
+    <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border);">
+      <a class="sidebar-item" id="logoutBtn">→ Sign Out</a>
+    </div>
+  </aside>
+
+  <main class="main-content">
+    <div id="pageContent"><p class="text-muted">Loading…</p></div>
+  </main>
+</div>
+
+<!-- CRUD modal -->
+<div class="modal-backdrop" id="crudModal">
+  <div class="modal">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <h3 id="crudModalTitle" style="margin:0;">Edit</h3>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('crudModal')">✕</button>
+    </div>
+    <form id="crudForm"></form>
+  </div>
+</div>
+
+<script src="assets/js/api.js"></script>
+<script>
+let CURRENT_USER = null;
+let CURRENT_COLLECTION = '';
+let CURRENT_ITEM = null;
+
+const COL_SCHEMA = {
+  packages: [['name','text'],['slug','text'],['price','number'],['description','textarea'],['badge','text'],['popular','checkbox'],['contactSales','checkbox'],['sortOrder','number'],['status','select:active,inactive'],['features','json']],
+  addons: [['name','text'],['description','textarea'],['price','number'],['category','text'],['icon','text'],['sortOrder','number'],['popular','checkbox'],['featured','checkbox'],['status','select:active,inactive']],
+  coupons: [['code','text'],['type','select:percentage,flat'],['value','number'],['minOrder','number'],['maxDiscount','number'],['expiryDate','text'],['usageLimit','number'],['status','select:active,inactive']],
+  testimonials: [['name','text'],['role','text'],['content','textarea'],['rating','number'],['sortOrder','number'],['status','select:active,inactive']],
+  portfolio: [['title','text'],['category','text'],['description','textarea'],['image','text'],['link','text'],['sortOrder','number'],['status','select:active,inactive']],
+  blogs: [['title','text'],['slug','text'],['excerpt','textarea'],['content','textarea'],['image','text'],['author','text'],['tags','json'],['status','select:draft,published']],
+  email_templates: [['key','text'],['name','text'],['subject','text'],['body','textarea'],['status','select:active,inactive']],
+  users: [['name','text'],['email','text'],['password','text'],['role','select:admin,customer'],['phone','text'],['company','text'],['status','select:active,disabled']],
+  customers: [['name','text'],['email','text'],['phone','text'],['company','text']],
+  leads: [['name','text'],['email','text'],['phone','text'],['company','text'],['service','text'],['message','textarea'],['status','select:new,contacted,converted,closed'],['notes','textarea']],
+  newsletter: [['email','text']],
+  orders: [['status','select:pending,paid,in_progress,completed,refunded,cancelled']],
+  invoices: [['status','select:pending,paid,cancelled']],
+  payments: [['status','select:pending,success,failed,refunded']],
+};
+
+async function init() {
+  try { const r = await api('auth/me'); CURRENT_USER = r.user; if (r.user.role !== 'admin') throw 0; }
+  catch { location.href = 'login.html'; return; }
+  document.querySelectorAll('.sidebar-item[data-page]').forEach(a => {
+    a.addEventListener('click', () => { document.querySelectorAll('.sidebar-item').forEach(x => x.classList.remove('active')); a.classList.add('active'); loadPage(a.dataset.page); });
+  });
+  $('#logoutBtn').addEventListener('click', async () => { await api('auth/logout'); location.href = 'index.html'; });
+  loadPage('stats');
+}
+
+async function loadPage(page) {
+  const el = $('#pageContent'); el.innerHTML = '<p class="text-muted">Loading…</p>';
+  try {
+    if (page === 'stats') return renderStats(el);
+    if (page === 'settings') return renderSettings(el);
+    if (page === 'integrations') return renderIntegrations(el);
+    if (page === 'backup') { el.innerHTML = '<h1>Backup / Export</h1><p class="text-muted">Download a JSON backup of the entire database (excludes passwords and file blobs).</p><a class="btn btn-primary" href="api/index.php?r=admin/backup" download>Download Backup JSON</a><br><br><a class="btn btn-ghost" href="api/index.php?r=admin/leads/export" download>Export leads (CSV)</a>'; return; }
+    if (page === 'orders') return renderOrders(el);
+    if (page === 'support_tickets') return renderTickets(el);
+    return renderCollection(el, page);
+  } catch (e) { el.innerHTML = `<p style="color:#f87171;">${e.message}</p>`; }
+}
+
+async function renderStats(el) {
+  const d = await api('admin/stats');
+  el.innerHTML = `<h1>Dashboard</h1>
+    <div class="grid-4">
+      ${statBox('Revenue', '$' + fmt(d.stats.revenue), '💰')}
+      ${statBox('Total Orders', d.stats.totalOrders, '📦')}
+      ${statBox('Paid Orders', d.stats.paidOrders, '✅')}
+      ${statBox('Pending', d.stats.pendingOrders, '⏳')}
+      ${statBox('Leads', d.stats.leads, '📨')}
+      ${statBox('Customers', d.stats.customers, '👥')}
+      ${statBox('Open Tickets', d.stats.openTickets, '🎫')}
+    </div>
+    <div class="glass" style="margin-top:32px;padding:24px;"><h3 style="margin-top:0;">Revenue by Month</h3>${revenueChart(d.revenueByMonth)}</div>
+    <div class="glass" style="margin-top:24px;padding:24px;"><h3 style="margin-top:0;">Recent Orders</h3>${recentOrdersTable(d.recentOrders)}</div>`;
+}
+function statBox(label, val, ico) { return `<div class="glass tilt" style="padding:24px;"><div style="font-size:24px;">${ico}</div><div style="font-size:28px;font-weight:800;" class="gradient-text">${val}</div><div class="text-muted" style="font-size:13px;">${label}</div></div>`; }
+function revenueChart(data) {
+  if (!data.length) return '<p class="text-muted">No revenue yet.</p>';
+  const max = Math.max(...data.map(d => d.amount)) || 1;
+  return `<div style="display:flex;gap:8px;align-items:flex-end;height:180px;padding:16px 0;">` +
+    data.map(d => `<div style="flex:1;text-align:center;"><div style="height:${(d.amount/max*160)}px;background:linear-gradient(180deg,#6366f1,#a855f7);border-radius:8px 8px 0 0;" title="$${fmt(d.amount)}"></div><div class="text-muted" style="font-size:11px;margin-top:6px;">${d.month}</div></div>`).join('') + `</div>`;
+}
+function recentOrdersTable(orders) {
+  if (!orders.length) return '<p class="text-muted">No orders yet.</p>';
+  return `<table class="table"><thead><tr><th>Order</th><th>Customer</th><th>Amount</th><th>Status</th><th>Date</th></tr></thead><tbody>` +
+    orders.map(o => `<tr><td>${o.orderNumber}</td><td>${o.customerName}</td><td>$${fmt(o.pricing?.grandTotal || 0)}</td><td><span class="pill pill-${o.status}">${o.status.replace('_',' ')}</span></td><td>${fmtDate(o.createdAt)}</td></tr>`).join('') + `</tbody></table>`;
+}
+
+async function renderCollection(el, col) {
+  CURRENT_COLLECTION = col;
+  const d = await api('admin/crud/list&col=' + col);
+  const rows = d.items;
+  const schema = COL_SCHEMA[col] || (rows[0] ? Object.keys(rows[0]).filter(k => !['id','createdAt','updatedAt','password'].includes(k)).slice(0, 6).map(k => [k, 'text']) : []);
+  const cols = schema.map(s => s[0]);
+  el.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+    <h1 style="margin:0;text-transform:capitalize;">${col.replace(/_/g,' ')}</h1>
+    ${COL_SCHEMA[col] ? `<button class="btn btn-primary" id="newBtn">+ New</button>` : ''}
+  </div>
+  <div class="glass" style="padding:16px;overflow-x:auto;">
+    <table class="table"><thead><tr>${cols.map(c => `<th>${c}</th>`).join('')}<th>Date</th><th></th></tr></thead>
+    <tbody>${rows.length ? rows.map(r => `<tr>${cols.map(c => `<td>${formatCell(r[c])}</td>`).join('')}<td>${fmtDate(r.createdAt)}</td><td>${COL_SCHEMA[col] ? `<button class="btn btn-sm btn-ghost" data-edit="${r.id}">Edit</button> <button class="btn btn-sm btn-ghost" data-del="${r.id}" style="color:#f87171;">Del</button>` : ''}</td></tr>`).join('') : `<tr><td colspan="${cols.length + 2}" class="text-muted" style="text-align:center;">No records</td></tr>`}</tbody></table>
+  </div>`;
+  if ($('#newBtn')) $('#newBtn').addEventListener('click', () => openCrudModal(col, null));
+  el.querySelectorAll('[data-edit]').forEach(b => b.addEventListener('click', () => openCrudModal(col, rows.find(r => r.id === b.dataset.edit))));
+  el.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', async () => { if (!confirm('Delete this record?')) return; try { await api(`admin/crud/delete&col=${col}&id=${b.dataset.del}`, { method: 'POST', body: {} }); toast('Deleted', 'success'); loadPage(col); } catch (e) { toast(e.message, 'error'); } }));
+}
+function formatCell(v) {
+  if (v === null || v === undefined) return '<span class="text-muted">—</span>';
+  if (typeof v === 'boolean') return v ? '✓' : '―';
+  if (Array.isArray(v)) return `<span class="text-muted">${v.length} items</span>`;
+  if (typeof v === 'object') return '<span class="text-muted">{...}</span>';
+  const s = String(v);
+  return s.length > 60 ? s.slice(0, 60) + '…' : s;
+}
+
+function openCrudModal(col, item) {
+  CURRENT_ITEM = item;
+  const schema = COL_SCHEMA[col];
+  $('#crudModalTitle').textContent = (item ? 'Edit ' : 'New ') + col.replace(/_/g,' ');
+  const form = $('#crudForm');
+  form.innerHTML = schema.map(([field, type]) => {
+    const val = item ? (item[field] ?? '') : '';
+    if (type === 'textarea') return `<div class="field"><label>${field}</label><textarea class="textarea" name="${field}">${val}</textarea></div>`;
+    if (type === 'checkbox') return `<div class="field"><label style="display:flex;gap:8px;align-items:center;"><input type="checkbox" name="${field}" ${val ? 'checked' : ''} /> ${field}</label></div>`;
+    if (type === 'json') return `<div class="field"><label>${field} (JSON array)</label><textarea class="textarea" name="${field}">${JSON.stringify(val || [], null, 2)}</textarea></div>`;
+    if (type === 'number') return `<div class="field"><label>${field}</label><input class="input" type="number" step="0.01" name="${field}" value="${val}" /></div>`;
+    if (type.startsWith('select:')) { const opts = type.slice(7).split(','); return `<div class="field"><label>${field}</label><select class="select" name="${field}">${opts.map(o => `<option ${val === o ? 'selected' : ''}>${o}</option>`).join('')}</select></div>`; }
+    return `<div class="field"><label>${field}</label><input class="input" name="${field}" value="${String(val).replace(/"/g,'&quot;')}" /></div>`;
+  }).join('') + `<button type="submit" class="btn btn-primary" style="width:100%;">${item ? 'Save' : 'Create'}</button>`;
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const data = {};
+    schema.forEach(([field, type]) => {
+      const el = form.elements[field];
+      if (type === 'checkbox') data[field] = el.checked;
+      else if (type === 'number') data[field] = el.value === '' ? null : parseFloat(el.value);
+      else if (type === 'json') { try { data[field] = JSON.parse(el.value || '[]'); } catch { data[field] = []; } }
+      else if (el.value !== '' || !item) data[field] = el.value;
+    });
+    try {
+      if (item) await api(`admin/crud/update&col=${col}&id=${item.id}`, { method: 'POST', body: data });
+      else await api(`admin/crud/create&col=${col}`, { method: 'POST', body: data });
+      toast('Saved', 'success'); closeModal('crudModal'); loadPage(col);
+    } catch (e) { toast(e.message, 'error'); }
+  };
+  openModal('crudModal');
+}
+
+async function renderOrders(el) {
+  const d = await api('admin/crud/list&col=orders');
+  el.innerHTML = `<h1>Orders</h1><div class="glass" style="padding:16px;overflow-x:auto;"><table class="table"><thead><tr><th>Order</th><th>Customer</th><th>Package</th><th>Total</th><th>Status</th><th>Date</th><th></th></tr></thead><tbody>` +
+    d.items.map(o => `<tr><td>${o.orderNumber}</td><td>${o.customerName}<div class="text-muted" style="font-size:11px;">${o.customerEmail}</div></td><td>${o.pricing?.package?.name || '—'}</td><td>$${fmt(o.pricing?.grandTotal || 0)}</td><td><select class="select" data-oid="${o.id}" style="padding:4px 8px;font-size:12px;">${['pending','paid','in_progress','completed','refunded','cancelled'].map(s => `<option ${o.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select></td><td>${fmtDate(o.createdAt)}</td><td><button class="btn btn-sm btn-ghost" data-view="${o.id}">View</button></td></tr>`).join('') +
+    `</tbody></table></div>`;
+  el.querySelectorAll('[data-oid]').forEach(sel => sel.addEventListener('change', async (e) => { try { await api(`admin/orders/status&id=${sel.dataset.oid}`, { method: 'POST', body: { status: e.target.value } }); toast('Status updated', 'success'); } catch (err) { toast(err.message, 'error'); } }));
+  el.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click', async () => { const r = await api('orders/get&id=' + b.dataset.view); alert(JSON.stringify(r.order.pricing, null, 2).slice(0, 800)); }));
+}
+
+async function renderTickets(el) {
+  const d = await api('admin/crud/list&col=support_tickets');
+  el.innerHTML = `<h1>Support Tickets</h1>` + d.items.map(t => `<div class="glass" style="padding:20px;margin-bottom:16px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;"><h3 style="margin:0;">${t.ticketNumber} — ${t.subject}</h3><span class="pill pill-${t.status}">${t.status}</span></div>
+    <div class="text-muted" style="font-size:13px;margin:4px 0;">${t.customerEmail} • ${fmtDate(t.createdAt)}</div>
+    <div style="margin:12px 0;max-height:200px;overflow-y:auto;">${(t.messages || []).map(m => `<div style="padding:8px 12px;margin:6px 0;border-radius:8px;background:${m.from === 'admin' ? 'rgba(168,85,247,0.15)' : 'rgba(255,255,255,0.03)'};border:1px solid var(--border);"><b style="font-size:12px;">${m.senderName}</b><div style="margin-top:2px;font-size:14px;">${m.message}</div></div>`).join('')}</div>
+    <form data-tid="${t.id}"><div style="display:flex;gap:8px;"><input class="input" name="message" placeholder="Reply…" required /><button class="btn btn-primary">Reply</button></div></form>
+  </div>`).join('') || '<p class="text-muted">No tickets.</p>';
+  el.querySelectorAll('form[data-tid]').forEach(f => f.addEventListener('submit', async (e) => { e.preventDefault(); try { await api(`admin/tickets/reply&id=${f.dataset.tid}`, { method: 'POST', body: { message: f.elements.message.value } }); toast('Reply sent', 'success'); loadPage('support_tickets'); } catch (err) { toast(err.message, 'error'); } }));
+}
+
+async function renderSettings(el) {
+  const r = await api('admin/crud/list&col=website_settings');
+  const s = r.items[0] || {};
+  el.innerHTML = `<h1>Website Settings</h1><div class="glass" style="padding:24px;"><form id="stForm">
+    <div class="grid-2">
+      <div class="field"><label>Site Name</label><input class="input" name="siteName" value="${s.siteName || ''}" /></div>
+      <div class="field"><label>Logo Text</label><input class="input" name="logoText" value="${s.logoText || ''}" /></div>
+    </div>
+    <div class="field"><label>Tagline</label><input class="input" name="tagline" value="${s.tagline || ''}" /></div>
+    <div class="grid-2">
+      <div class="field"><label>Tax Rate (%)</label><input class="input" type="number" step="0.1" name="taxRate" value="${s.taxRate || 10}" /></div>
+      <div class="field"><label>Currency Symbol</label><input class="input" name="currencySymbol" value="${s.currencySymbol || '$'}" /></div>
+    </div>
+    <h3>SEO</h3>
+    <div class="field"><label>Title</label><input class="input" name="seo_title" value="${s.seo?.title || ''}" /></div>
+    <div class="field"><label>Description</label><textarea class="textarea" name="seo_description">${s.seo?.description || ''}</textarea></div>
+    <h3>Hero</h3>
+    <div class="field"><label>Badge</label><input class="input" name="hero_badge" value="${s.hero?.badge || ''}" /></div>
+    <div class="field"><label>Title</label><input class="input" name="hero_title" value="${s.hero?.title || ''}" /></div>
+    <div class="field"><label>Subtitle</label><textarea class="textarea" name="hero_subtitle">${s.hero?.subtitle || ''}</textarea></div>
+    <div class="field"><label>Hero Image URL</label><input class="input" name="hero_image" value="${s.hero?.image || ''}" /></div>
+    <h3>Contact</h3>
+    <div class="grid-2"><div class="field"><label>Email</label><input class="input" name="contact_email" value="${s.contact?.email || ''}" /></div><div class="field"><label>Phone</label><input class="input" name="contact_phone" value="${s.contact?.phone || ''}" /></div></div>
+    <div class="field"><label>Address</label><input class="input" name="contact_address" value="${s.contact?.address || ''}" /></div>
+    <button type="submit" class="btn btn-primary">Save Settings</button>
+  </form></div>`;
+  $('#stForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const f = new FormData(e.target);
+    const body = { siteName: f.get('siteName'), logoText: f.get('logoText'), tagline: f.get('tagline'), taxRate: parseFloat(f.get('taxRate') || 10), currencySymbol: f.get('currencySymbol'),
+      seo: { ...s.seo, title: f.get('seo_title'), description: f.get('seo_description') },
+      hero: { ...s.hero, badge: f.get('hero_badge'), title: f.get('hero_title'), subtitle: f.get('hero_subtitle'), image: f.get('hero_image') },
+      contact: { ...s.contact, email: f.get('contact_email'), phone: f.get('contact_phone'), address: f.get('contact_address') },
+    };
+    try { await api('admin/settings', { method: 'POST', body }); toast('Settings saved', 'success'); } catch (err) { toast(err.message, 'error'); }
+  });
+}
+
+async function renderIntegrations(el) {
+  const d = await api('admin/integrations');
+  el.innerHTML = `<h1>Integrations</h1><p class="text-muted">Configure in <code>/config.php</code> on the server.</p>
+    <div class="grid-2">
+      ${integCard('Cashfree Payments', d.cashfree.configured, d.cashfree.env, 'cashfree_app_id / cashfree_secret_key')}
+      ${integCard('Google OAuth', d.googleOAuth.configured, '', 'google_client_id / google_client_secret')}
+      ${integCard('SMTP / Mail', d.smtp.configured, '', 'mail_enabled = true, mail_from')}
+      ${integCard('Cloudinary', d.cloudinary.configured, '', 'coming soon')}
+    </div>`;
+}
+function integCard(name, ok, meta, keys) {
+  return `<div class="glass" style="padding:24px;"><div style="display:flex;justify-content:space-between;align-items:center;"><h3 style="margin:0;">${name}</h3><span class="pill ${ok ? 'pill-paid' : 'pill-pending'}">${ok ? 'Connected' : 'Not configured'}</span></div>${meta ? `<div class="text-muted" style="font-size:13px;margin-top:6px;">${meta}</div>` : ''}<div class="text-muted" style="font-size:12px;margin-top:8px;font-family:monospace;">${keys}</div></div>`;
+}
+
+init();
+</script>
+</body>
+</html>

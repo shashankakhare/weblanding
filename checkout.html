@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Checkout - Digital Dreams Inc.</title>
+<link rel="stylesheet" href="assets/css/app.css" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+</head>
+<body>
+<div class="aurora"><div class="blob-3"></div></div>
+<div class="grid-dots"></div>
+
+<nav class="nav"><div class="container nav-inner">
+  <a href="index.html" class="logo"><span class="logo-dot"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></span>Digital Dreams</a>
+  <a href="index.html" class="btn btn-ghost btn-sm">← Back</a>
+</div></nav>
+
+<section style="padding-top: 120px;">
+  <div class="container">
+    <div class="section-head">
+      <div class="badge">10-step checkout</div>
+      <h2>Build Your <span class="gradient-text">Perfect Website</span></h2>
+    </div>
+
+    <div class="progress-bar"><div class="progress-bar-fill" id="progressBar" style="width:10%;"></div></div>
+    <div class="steps" id="stepsPills"></div>
+
+    <div style="display:grid;grid-template-columns: 2fr 1fr;gap:32px;" class="co-grid">
+      <div class="glass" style="padding: 32px;">
+        <div id="stepContent"></div>
+        <div style="display:flex;justify-content:space-between;margin-top:32px;padding-top:24px;border-top:1px solid var(--border);">
+          <button class="btn btn-ghost" id="backBtn">← Back</button>
+          <button class="btn btn-primary" id="nextBtn">Continue →</button>
+        </div>
+      </div>
+
+      <div class="glass" style="padding: 28px; align-self: start; position: sticky; top: 100px;">
+        <h3 style="margin:0 0 16px;">Order Summary</h3>
+        <div id="summaryBox"><p class="text-muted">Select a package to continue.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+@media (max-width: 900px) { .co-grid { grid-template-columns: 1fr !important; } }
+.pkg-select { display:grid; gap:14px; }
+.pkg-select label { display:block; padding: 20px; border-radius: 14px; border: 1px solid var(--border); background: rgba(255,255,255,0.03); cursor: pointer; transition: all 0.2s; }
+.pkg-select label:hover { border-color: rgba(99,102,241,0.4); }
+.pkg-select input[type=radio] { display:none; }
+.pkg-select input[type=radio]:checked + .pkg-body { }
+.pkg-select label:has(input:checked) { border-color: #6366f1; background: rgba(99,102,241,0.1); box-shadow: 0 0 30px -10px rgba(99,102,241,0.5); }
+.pkg-body { display:flex; justify-content: space-between; align-items:center; gap:16px; }
+.pkg-body .name { font-size: 18px; font-weight: 700; }
+.pkg-body .desc { color: var(--muted); font-size: 13px; margin-top: 4px; }
+.pkg-body .price { font-size: 26px; font-weight: 800; background: linear-gradient(135deg,#6366f1,#a855f7); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+.addon-item { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-radius: 10px; border: 1px solid var(--border); background: rgba(255,255,255,0.03); margin-bottom: 8px; cursor: pointer; }
+.addon-item input { width: 18px; height: 18px; accent-color: #6366f1; }
+.addon-item.selected { border-color: rgba(99,102,241,0.5); background: rgba(99,102,241,0.08); }
+.file-drop { border: 2px dashed rgba(255,255,255,0.15); border-radius: 14px; padding: 32px; text-align: center; cursor: pointer; transition: all 0.2s; }
+.file-drop:hover { border-color: rgba(99,102,241,0.4); background: rgba(99,102,241,0.03); }
+.file-tag { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; margin: 4px; border-radius: 999px; background: rgba(99,102,241,0.1); border: 1px solid rgba(99,102,241,0.3); font-size: 12px; }
+</style>
+
+<script src="assets/js/api.js"></script>
+<script>
+const STEP_TITLES = ['Package','Add-ons','Coupon','Details','Contact','Project','Uploads','Review','Account','Payment'];
+let STATE = {
+  step: 1,
+  packageId: new URLSearchParams(location.search).get('pkg') || '',
+  addonIds: [],
+  couponCode: '',
+  customer: { name: '', email: '', phone: '', company: '', projectDetails: '', websiteUrl: '', serviceType: 'business' },
+  createAccount: true,
+  password: '',
+  files: [],
+  packages: [], addons: [], settings: {}, pricing: null,
+  orderId: '', orderNumber: ''
+};
+
+async function loadData() {
+  const d = await api('public/content');
+  STATE.packages = (d.packages || []).filter(p => !p.contactSales);
+  STATE.addons = d.addons || [];
+  STATE.settings = d.settings || {};
+  render();
+}
+
+function render() {
+  // Pills
+  $('#stepsPills').innerHTML = STEP_TITLES.map((t, i) => {
+    const n = i + 1;
+    const cls = n === STATE.step ? 'active' : (n < STATE.step ? 'done' : '');
+    return `<div class="step-pill ${cls}">${n}. ${t}</div>`;
+  }).join('');
+  $('#progressBar').style.width = (STATE.step / STEP_TITLES.length * 100) + '%';
+
+  $('#backBtn').style.visibility = STATE.step === 1 ? 'hidden' : 'visible';
+  $('#nextBtn').textContent = STATE.step === STEP_TITLES.length ? 'Complete Payment →' : (STATE.step === 8 ? 'Confirm & Continue →' : 'Continue →');
+
+  const c = $('#stepContent');
+  const sym = STATE.settings.currencySymbol || '$';
+
+  switch (STATE.step) {
+    case 1:
+      c.innerHTML = `<h3 style="margin-top:0;">Choose Your Package</h3><p class="text-muted">Pick the plan that fits your project.</p><div class="pkg-select">` +
+        STATE.packages.map(p => `<label><input type="radio" name="pkg" value="${p.id}" ${STATE.packageId === p.id ? 'checked' : ''} /><div class="pkg-body"><div><div class="name">${p.name}${p.popular ? ' ⭐' : ''}</div><div class="desc">${p.description}</div></div><div class="price">${sym}${Math.round(p.price)}</div></div></label>`).join('') + `</div>`;
+      c.querySelectorAll('input[name=pkg]').forEach(i => i.addEventListener('change', e => { STATE.packageId = e.target.value; recalc(); }));
+      break;
+    case 2:
+      c.innerHTML = `<h3 style="margin-top:0;">Enhance With Add-ons</h3><p class="text-muted">Optional — pick anything that fits your project.</p>` +
+        STATE.addons.map(a => `<label class="addon-item ${STATE.addonIds.includes(a.id) ? 'selected' : ''}"><input type="checkbox" value="${a.id}" ${STATE.addonIds.includes(a.id) ? 'checked' : ''} /><div style="flex:1;"><div style="font-weight:600;">${a.name}</div><div class="text-muted" style="font-size:13px;">${a.description}</div></div><div style="font-weight:700;color:#a5b4fc;">+${sym}${a.price}</div></label>`).join('');
+      c.querySelectorAll('input[type=checkbox]').forEach(i => i.addEventListener('change', e => {
+        if (e.target.checked) STATE.addonIds.push(e.target.value);
+        else STATE.addonIds = STATE.addonIds.filter(x => x !== e.target.value);
+        render(); recalc();
+      }));
+      break;
+    case 3:
+      c.innerHTML = `<h3 style="margin-top:0;">Have a Coupon?</h3><p class="text-muted">Enter code below or skip. Try <b>WELCOME10</b> or <b>FLAT50</b>.</p>
+        <div style="display:flex;gap:12px;"><input class="input" id="couponInput" value="${STATE.couponCode}" placeholder="COUPON CODE" /><button class="btn btn-ghost" id="applyCoupon">Apply</button></div>
+        <div id="couponMsg" style="margin-top:12px;"></div>`;
+      $('#applyCoupon').addEventListener('click', async () => {
+        STATE.couponCode = $('#couponInput').value.trim();
+        await recalc();
+        if (STATE.pricing?.couponError) $('#couponMsg').innerHTML = `<span style="color:#f87171;">${STATE.pricing.couponError}</span>`;
+        else if (STATE.pricing?.coupon) $('#couponMsg').innerHTML = `<span style="color:#4ade80;">Coupon applied: -${sym}${fmt(STATE.pricing.discount)}</span>`;
+        else $('#couponMsg').innerHTML = '';
+      });
+      break;
+    case 4:
+      c.innerHTML = `<h3 style="margin-top:0;">Your Details</h3>
+        <div class="grid-2">
+          <div class="field"><label>Full Name *</label><input class="input" id="cName" value="${STATE.customer.name}" required /></div>
+          <div class="field"><label>Email *</label><input class="input" type="email" id="cEmail" value="${STATE.customer.email}" required /></div>
+        </div>
+        <div class="grid-2">
+          <div class="field"><label>Phone</label><input class="input" id="cPhone" value="${STATE.customer.phone}" /></div>
+          <div class="field"><label>Company</label><input class="input" id="cCompany" value="${STATE.customer.company}" /></div>
+        </div>`;
+      ['name','email','phone','company'].forEach(f => $('#c' + f[0].toUpperCase()+f.slice(1)).addEventListener('input', e => STATE.customer[f] = e.target.value));
+      break;
+    case 5:
+      c.innerHTML = `<h3 style="margin-top:0;">Project Contact & Type</h3>
+        <div class="field"><label>What kind of website?</label>
+          <select class="select" id="cType">
+            ${['business','portfolio','ecommerce','landing','saas','other'].map(o => `<option value="${o}" ${STATE.customer.serviceType === o ? 'selected' : ''}>${o.charAt(0).toUpperCase()+o.slice(1)}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field"><label>Existing website (if any)</label><input class="input" id="cUrl" value="${STATE.customer.websiteUrl}" placeholder="https://" /></div>`;
+      $('#cType').addEventListener('change', e => STATE.customer.serviceType = e.target.value);
+      $('#cUrl').addEventListener('input', e => STATE.customer.websiteUrl = e.target.value);
+      break;
+    case 6:
+      c.innerHTML = `<h3 style="margin-top:0;">Tell Us About Your Project</h3><p class="text-muted">Share your goals, must-have features, brand style, references — the more detail, the better.</p>
+        <div class="field"><textarea class="textarea" id="cDetails" style="min-height:220px;" placeholder="e.g., I run a bakery and need a mobile-friendly site with online ordering, a menu, and photo gallery. Colors: pastel pink and cream. Inspiration: goldbelly.com">${STATE.customer.projectDetails}</textarea></div>`;
+      $('#cDetails').addEventListener('input', e => STATE.customer.projectDetails = e.target.value);
+      break;
+    case 7:
+      c.innerHTML = `<h3 style="margin-top:0;">Upload Brand Assets <span style="font-size:14px;color:var(--muted);font-weight:500;">(optional)</span></h3><p class="text-muted">Logo, brand guidelines, existing photos etc. Max 10 files, 2MB each.</p>
+        <label class="file-drop" for="fileInput">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-bottom:12px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12" /></svg>
+          <div style="font-weight:600;">Click to select files</div>
+          <div class="text-muted" style="font-size:13px;margin-top:4px;">Or skip — you can upload later from dashboard.</div>
+        </label>
+        <input type="file" id="fileInput" multiple hidden />
+        <div id="fileList" style="margin-top:16px;"></div>`;
+      $('#fileInput').addEventListener('change', async (e) => {
+        for (const f of e.target.files) {
+          if (f.size > 2000000) { toast(`${f.name} exceeds 2MB`, 'error'); continue; }
+          const b64 = await new Promise(r => { const R = new FileReader(); R.onload = () => r(R.result); R.readAsDataURL(f); });
+          STATE.files.push({ name: f.name, type: f.type, data: b64, category: 'brand_asset' });
+        }
+        $('#fileList').innerHTML = STATE.files.map((f, i) => `<span class="file-tag">${f.name} <span style="cursor:pointer;" data-i="${i}">✕</span></span>`).join('');
+        $('#fileList').querySelectorAll('[data-i]').forEach(el => el.addEventListener('click', ev => { STATE.files.splice(+ev.target.dataset.i, 1); render(); }));
+      });
+      $('#fileList').innerHTML = STATE.files.map((f, i) => `<span class="file-tag">${f.name} <span style="cursor:pointer;" data-i="${i}">✕</span></span>`).join('');
+      break;
+    case 8:
+      const pkg = STATE.packages.find(p => p.id === STATE.packageId);
+      c.innerHTML = `<h3 style="margin-top:0;">Review Your Order</h3>
+        <div class="field"><label>Package</label><div>${pkg ? pkg.name + ' — ' + sym + fmt(pkg.price) : 'Not selected'}</div></div>
+        <div class="field"><label>Add-ons</label><div>${STATE.addonIds.length ? STATE.addonIds.map(id => STATE.addons.find(a => a.id === id)?.name).join(', ') : 'None'}</div></div>
+        <div class="field"><label>Contact</label><div>${STATE.customer.name} &lt;${STATE.customer.email}&gt;${STATE.customer.phone ? ', ' + STATE.customer.phone : ''}</div></div>
+        <div class="field"><label>Company</label><div>${STATE.customer.company || 'N/A'}</div></div>
+        <div class="field"><label>Site type</label><div>${STATE.customer.serviceType}</div></div>
+        <div class="field"><label>Existing URL</label><div>${STATE.customer.websiteUrl || 'N/A'}</div></div>
+        <div class="field"><label>Project details</label><div style="white-space:pre-wrap;color:var(--muted);">${STATE.customer.projectDetails || 'N/A'}</div></div>
+        <div class="field"><label>Files</label><div>${STATE.files.length} file(s) queued</div></div>`;
+      break;
+    case 9:
+      c.innerHTML = `<h3 style="margin-top:0;">Account</h3><p class="text-muted">We will create a customer account so you can track your project & invoices. A temporary password is emailed to you after payment. You can also set one now.</p>
+        <div class="field"><label>Set password (optional)</label><input class="input" type="password" id="cPass" placeholder="Leave blank to auto-generate" value="${STATE.password}" /></div>
+        <p class="text-muted" style="font-size:13px;">By continuing, you agree to our terms and privacy policy.</p>`;
+      $('#cPass').addEventListener('input', e => STATE.password = e.target.value);
+      break;
+    case 10:
+      const total = STATE.pricing ? sym + fmt(STATE.pricing.grandTotal) : '—';
+      c.innerHTML = `<h3 style="margin-top:0;">Payment</h3><p class="text-muted">Amount due: <b>${total}</b></p>
+        <div class="glass" style="padding:20px;margin:20px 0;">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <div style="width:48px;height:48px;border-radius:12px;background:linear-gradient(135deg,#6366f1,#a855f7);display:grid;place-items:center;font-weight:800;">CF</div>
+            <div><div style="font-weight:700;">Cashfree Payments</div><div class="text-muted" style="font-size:13px;">UPI, Cards, Netbanking, Wallets</div></div>
+          </div>
+        </div>
+        <p class="text-muted" style="font-size:13px;">Click <b>Complete Payment</b> below. If Cashfree keys are not configured on the server, the demo will run in safe mock-payment mode.</p>`;
+      break;
+  }
+
+  renderSummary();
+}
+
+function renderSummary() {
+  const sym = STATE.settings.currencySymbol || '$';
+  const pkg = STATE.packages.find(p => p.id === STATE.packageId);
+  if (!pkg) { $('#summaryBox').innerHTML = `<p class="text-muted">Choose a package to continue.</p>`; return; }
+  const rows = [`<div style="display:flex;justify-content:space-between;padding:6px 0;"><span>${pkg.name}</span><b>${sym}${fmt(pkg.price)}</b></div>`];
+  STATE.addonIds.forEach(id => { const a = STATE.addons.find(x => x.id === id); if (a) rows.push(`<div style="display:flex;justify-content:space-between;padding:6px 0;color:var(--muted);"><span>+ ${a.name}</span><span>${sym}${fmt(a.price)}</span></div>`); });
+  let html = rows.join('') + `<hr style="border:none;border-top:1px solid var(--border);margin:12px 0;">`;
+  if (STATE.pricing) {
+    html += `<div style="display:flex;justify-content:space-between;padding:4px 0;color:var(--muted);"><span>Subtotal</span><span>${sym}${fmt(STATE.pricing.subtotal)}</span></div>`;
+    if (STATE.pricing.discount > 0) html += `<div style="display:flex;justify-content:space-between;padding:4px 0;color:#4ade80;"><span>Discount</span><span>-${sym}${fmt(STATE.pricing.discount)}</span></div>`;
+    html += `<div style="display:flex;justify-content:space-between;padding:4px 0;color:var(--muted);"><span>Tax (${STATE.pricing.taxRate}%)</span><span>${sym}${fmt(STATE.pricing.tax)}</span></div>`;
+    html += `<hr style="border:none;border-top:1px solid var(--border);margin:12px 0;"><div style="display:flex;justify-content:space-between;font-size:22px;font-weight:800;"><span>Total</span><span class="gradient-text">${sym}${fmt(STATE.pricing.grandTotal)}</span></div>`;
+  }
+  $('#summaryBox').innerHTML = html;
+}
+
+async function recalc() {
+  if (!STATE.packageId) { STATE.pricing = null; renderSummary(); return; }
+  try {
+    const d = await api('pricing/calculate', { method: 'POST', body: { packageId: STATE.packageId, addonIds: STATE.addonIds, couponCode: STATE.couponCode } });
+    STATE.pricing = d.pricing;
+  } catch (e) { STATE.pricing = null; }
+  renderSummary();
+}
+
+function validateStep() {
+  if (STATE.step === 1 && !STATE.packageId) return 'Please choose a package';
+  if (STATE.step === 4 && (!STATE.customer.name || !STATE.customer.email)) return 'Name and email are required';
+  return null;
+}
+
+$('#backBtn').addEventListener('click', () => { if (STATE.step > 1) { STATE.step--; render(); } });
+$('#nextBtn').addEventListener('click', async () => {
+  const err = validateStep();
+  if (err) return toast(err, 'error');
+  if (STATE.step === STEP_TITLES.length) return placeOrderAndPay();
+  STATE.step++;
+  render();
+  if (STATE.step === 3 || STATE.step === 8 || STATE.step === 10) await recalc();
+});
+
+async function placeOrderAndPay() {
+  const btn = $('#nextBtn'); btn.disabled = true; btn.textContent = 'Processing...';
+  try {
+    // 1. Optionally register (best effort)
+    if (STATE.createAccount && STATE.password) {
+      try { await api('auth/register', { method: 'POST', body: { name: STATE.customer.name, email: STATE.customer.email, password: STATE.password } }); } catch (e) { /* ignore — will auto-create on payment */ }
+    }
+    // 2. Create order
+    const o = await api('orders', { method: 'POST', body: {
+      packageId: STATE.packageId, addonIds: STATE.addonIds, couponCode: STATE.couponCode, customer: STATE.customer
+    }});
+    STATE.orderId = o.orderId; STATE.orderNumber = o.orderNumber;
+
+    // 3. Upload files if any
+    if (STATE.files.length) {
+      try { await api('orders/uploads&id=' + STATE.orderId, { method: 'POST', body: { files: STATE.files } }); } catch (e) { toast('Upload failed: ' + e.message, 'error'); }
+    }
+
+    // 4. Create payment session
+    const sess = await api('payments/session', { method: 'POST', body: { orderId: STATE.orderId } });
+    if (sess.mock) {
+      // Mock complete
+      await api('payments/mock-complete', { method: 'POST', body: { orderId: STATE.orderId } });
+      location.href = 'order-success.html?orderId=' + STATE.orderId;
+    } else {
+      // Real Cashfree flow — load script and open drop-in
+      await loadCashfree();
+      const cashfree = Cashfree({ mode: STATE.settings.cashfree_env === 'production' ? 'production' : 'sandbox' });
+      await cashfree.checkout({ paymentSessionId: sess.paymentSessionId, redirectTarget: '_self' });
+    }
+  } catch (e) {
+    toast('Order failed: ' + e.message, 'error');
+    btn.disabled = false; btn.textContent = 'Complete Payment →';
+  }
+}
+
+function loadCashfree() {
+  return new Promise((res, rej) => {
+    if (window.Cashfree) return res();
+    const s = document.createElement('script'); s.src = 'https://sdk.cashfree.com/js/v3/cashfree.js';
+    s.onload = res; s.onerror = () => rej(new Error('Cashfree SDK failed to load')); document.body.appendChild(s);
+  });
+}
+
+loadData().then(() => { if (STATE.packageId) recalc(); });
+</script>
+</body>
+</html>

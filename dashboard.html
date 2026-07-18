@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Dashboard - Digital Dreams Inc.</title>
+<link rel="stylesheet" href="assets/css/app.css" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+</head>
+<body>
+<div class="aurora"></div>
+
+<div class="app-layout">
+  <aside class="sidebar">
+    <a href="index.html" class="logo" style="margin-bottom:24px;">
+      <span class="logo-dot"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></span>
+      Dashboard
+    </a>
+    <nav id="sidebarNav">
+      <a class="sidebar-item active" data-page="overview">Overview</a>
+      <a class="sidebar-item" data-page="orders">My Orders</a>
+      <a class="sidebar-item" data-page="invoices">Invoices</a>
+      <a class="sidebar-item" data-page="payments">Payments</a>
+      <a class="sidebar-item" data-page="tickets">Support Tickets</a>
+      <a class="sidebar-item" data-page="messages">Messages</a>
+      <a class="sidebar-item" data-page="downloads">Downloads</a>
+      <a class="sidebar-item" data-page="uploads">Uploads</a>
+      <a class="sidebar-item" data-page="notifications">Notifications</a>
+      <a class="sidebar-item" data-page="profile">Profile</a>
+    </nav>
+    <div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--border);">
+      <a class="sidebar-item" id="logoutBtn">→ Sign Out</a>
+    </div>
+  </aside>
+
+  <main class="main-content">
+    <div id="pageContent"><p class="text-muted">Loading…</p></div>
+  </main>
+</div>
+
+<script src="assets/js/api.js"></script>
+<script>
+let CURRENT_USER = null, DATA = {};
+
+async function init() {
+  try { const r = await api('auth/me'); CURRENT_USER = r.user; }
+  catch { location.href = 'login.html'; return; }
+  document.querySelectorAll('.sidebar-item[data-page]').forEach(a => {
+    a.addEventListener('click', () => { document.querySelectorAll('.sidebar-item').forEach(x => x.classList.remove('active')); a.classList.add('active'); loadPage(a.dataset.page); });
+  });
+  $('#logoutBtn').addEventListener('click', async () => { await api('auth/logout'); location.href = 'index.html'; });
+  loadPage('overview');
+}
+
+async function loadPage(page) {
+  const el = $('#pageContent'); el.innerHTML = '<p class="text-muted">Loading…</p>';
+  try {
+    if (page === 'overview') {
+      const d = await api('customer/overview'); DATA.overview = d;
+      el.innerHTML = `<h1 style="margin:0 0 4px;font-size:32px;">Welcome back, ${CURRENT_USER.name || CURRENT_USER.email.split('@')[0]}</h1>
+        <p class="text-muted">Here is a snapshot of your account.</p>
+        <div class="grid-4" style="margin-top:24px;">
+          ${statBox('Orders', d.stats.orders, '📅')}
+          ${statBox('Invoices', d.stats.invoices, '🗂')}
+          ${statBox('Total spent', '$' + fmt(d.stats.totalSpent), '💰')}
+          ${statBox('Open tickets', d.stats.openTickets, '🎫')}
+        </div>
+        <div class="grid-2" style="margin-top:32px;">
+          <div class="glass" style="padding:24px;"><h3 style="margin-top:0;">Recent Orders</h3>${ordersTable(d.orders.slice(0,5))}</div>
+          <div class="glass" style="padding:24px;"><h3 style="margin-top:0;">Latest Notifications</h3>${d.notifications.slice(0,6).map(n => `<div style="padding:12px 0;border-bottom:1px solid var(--border);"><b>${n.title}</b><div class="text-muted" style="font-size:13px;">${n.message}</div><div class="text-muted" style="font-size:11px;margin-top:2px;">${fmtDate(n.createdAt)}</div></div>`).join('') || '<p class="text-muted">Nothing yet.</p>'}</div>
+        </div>`;
+    } else if (page === 'orders') {
+      const d = await api('customer/orders');
+      el.innerHTML = `<h1>My Orders</h1>${ordersTable(d.orders)}`;
+    } else if (page === 'invoices') {
+      const d = await api('customer/invoices');
+      el.innerHTML = `<h1>Invoices</h1><div class="glass" style="padding:24px;"><table class="table"><thead><tr><th>Invoice</th><th>Order</th><th>Amount</th><th>Status</th><th>Date</th><th></th></tr></thead><tbody>` +
+        (d.invoices.length ? d.invoices.map(i => `<tr><td>${i.invoiceNumber}</td><td>${i.orderNumber}</td><td>$${fmt(i.total)}</td><td><span class="pill pill-paid">Paid</span></td><td>${fmtDate(i.createdAt)}</td><td><a class="btn btn-sm btn-ghost" href="invoice.html?id=${i.id}">View</a></td></tr>`).join('') : `<tr><td colspan="6" class="text-muted" style="text-align:center;">No invoices yet</td></tr>`) + `</tbody></table></div>`;
+    } else if (page === 'payments') {
+      const d = await api('customer/payments');
+      el.innerHTML = `<h1>Payments</h1><div class="glass" style="padding:24px;"><table class="table"><thead><tr><th>Payment</th><th>Order</th><th>Method</th><th>Amount</th><th>Date</th></tr></thead><tbody>` +
+        (d.payments.length ? d.payments.map(p => `<tr><td>${p.gatewayPaymentId || p.id.slice(0,8)}</td><td>${p.orderNumber}</td><td>${p.method}</td><td>$${fmt(p.amount)}</td><td>${fmtDate(p.createdAt)}</td></tr>`).join('') : `<tr><td colspan="5" class="text-muted" style="text-align:center;">No payments yet</td></tr>`) + `</tbody></table></div>`;
+    } else if (page === 'tickets') {
+      const d = await api('customer/tickets');
+      el.innerHTML = `<h1>Support Tickets</h1>
+        <div class="glass" style="padding:24px;margin-bottom:24px;">
+          <h3 style="margin-top:0;">Open a new ticket</h3>
+          <form id="tktForm">
+            <div class="grid-2"><div class="field"><label>Subject</label><input class="input" name="subject" required /></div><div class="field"><label>Priority</label><select class="select" name="priority"><option>low</option><option selected>medium</option><option>high</option></select></div></div>
+            <div class="field"><label>Message</label><textarea class="textarea" name="message" required></textarea></div>
+            <button class="btn btn-primary">Submit Ticket</button>
+          </form>
+        </div>
+        <div class="glass" style="padding:24px;"><h3 style="margin-top:0;">Your Tickets</h3>${d.tickets.length ? d.tickets.map(t => `<div style="padding:16px 0;border-bottom:1px solid var(--border);"><b>${t.ticketNumber}</b> — ${t.subject} <span class="pill pill-${t.status}">${t.status}</span><div class="text-muted" style="font-size:13px;margin-top:4px;">${fmtDate(t.createdAt)}</div></div>`).join('') : '<p class="text-muted">No tickets yet.</p>'}</div>`;
+      $('#tktForm').addEventListener('submit', async (e) => { e.preventDefault(); const b = Object.fromEntries(new FormData(e.target).entries()); try { await api('customer/tickets', { method: 'POST', body: b }); toast('Ticket submitted', 'success'); loadPage('tickets'); } catch (err) { toast(err.message, 'error'); } });
+    } else if (page === 'messages') {
+      const d = await api('customer/messages');
+      el.innerHTML = `<h1>Messages</h1><div class="glass" style="padding:24px;"><div id="msgList" style="max-height:400px;overflow-y:auto;margin-bottom:16px;">` +
+        (d.messages.length ? d.messages.map(m => `<div style="margin:12px 0;padding:12px;border-radius:12px;background:${m.from === 'customer' ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.03)'};border:1px solid var(--border);"><div style="font-weight:600;font-size:13px;">${m.senderName || m.from}</div><div style="margin-top:4px;">${m.message}</div><div class="text-muted" style="font-size:11px;margin-top:6px;">${fmtDate(m.createdAt)}</div></div>`).join('') : '<p class="text-muted">No messages yet.</p>') +
+        `</div><form id="msgForm" style="display:flex;gap:8px;"><input class="input" name="message" placeholder="Type a message…" required style="flex:1;" /><button class="btn btn-primary">Send</button></form></div>`;
+      $('#msgForm').addEventListener('submit', async (e) => { e.preventDefault(); const b = { message: e.target.message.value }; try { await api('customer/messages', { method: 'POST', body: b }); loadPage('messages'); } catch (err) { toast(err.message, 'error'); } });
+    } else if (page === 'downloads') {
+      const d = await api('customer/downloads');
+      el.innerHTML = `<h1>Deliverables</h1><div class="glass" style="padding:24px;">${d.downloads.length ? d.downloads.map(f => `<div style="padding:12px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;"><div><b>${f.name}</b><div class="text-muted" style="font-size:12px;">${fmtDate(f.createdAt)}</div></div><a href="api/index.php?r=customer/uploads/file&id=${f.id}" class="btn btn-sm btn-ghost" target="_blank">Download</a></div>`).join('') : '<p class="text-muted">No deliverables yet. Your team will upload finished files here.</p>'}</div>`;
+    } else if (page === 'uploads') {
+      const d = await api('customer/uploads');
+      el.innerHTML = `<h1>Your Uploaded Files</h1>
+        <div class="glass" style="padding:24px;margin-bottom:24px;">
+          <h3 style="margin-top:0;">Upload new files</h3>
+          <input type="file" id="upFiles" multiple />
+          <button class="btn btn-primary" id="upBtn" style="margin-top:12px;">Upload</button>
+        </div>
+        <div class="glass" style="padding:24px;">${d.uploads.length ? d.uploads.map(f => `<div style="padding:10px 0;border-bottom:1px solid var(--border);"><b>${f.name}</b><div class="text-muted" style="font-size:12px;">${f.category} — ${fmtDate(f.createdAt)}</div></div>`).join('') : '<p class="text-muted">No uploads yet.</p>'}</div>`;
+      $('#upBtn').addEventListener('click', async () => {
+        const files = [];
+        for (const f of $('#upFiles').files) {
+          if (f.size > 2000000) { toast(`${f.name} > 2MB`, 'error'); continue; }
+          const data = await new Promise(r => { const R = new FileReader(); R.onload = () => r(R.result); R.readAsDataURL(f); });
+          files.push({ name: f.name, type: f.type, data, category: 'asset' });
+        }
+        if (!files.length) return;
+        try { await api('customer/uploads', { method: 'POST', body: { files } }); toast('Uploaded', 'success'); loadPage('uploads'); } catch (e) { toast(e.message, 'error'); }
+      });
+    } else if (page === 'notifications') {
+      const d = await api('customer/notifications');
+      el.innerHTML = `<h1>Notifications</h1><div class="glass" style="padding:24px;">${d.notifications.length ? d.notifications.map(n => `<div style="padding:14px 0;border-bottom:1px solid var(--border);"><b>${n.title}</b><div class="text-muted" style="font-size:13px;">${n.message}</div><div class="text-muted" style="font-size:11px;margin-top:4px;">${fmtDate(n.createdAt)}</div></div>`).join('') : '<p class="text-muted">All caught up.</p>'}</div>`;
+      api('customer/notifications/read', { method: 'POST', body: {} }).catch(() => {});
+    } else if (page === 'profile') {
+      el.innerHTML = `<h1>Profile</h1>
+        <div class="grid-2">
+          <div class="glass" style="padding:24px;">
+            <h3 style="margin-top:0;">Your details</h3>
+            <form id="profForm">
+              <div class="field"><label>Name</label><input class="input" name="name" value="${CURRENT_USER.name || ''}" /></div>
+              <div class="field"><label>Email</label><input class="input" value="${CURRENT_USER.email}" disabled /></div>
+              <div class="field"><label>Phone</label><input class="input" name="phone" value="${CURRENT_USER.phone || ''}" /></div>
+              <div class="field"><label>Company</label><input class="input" name="company" value="${CURRENT_USER.company || ''}" /></div>
+              <button class="btn btn-primary">Save Changes</button>
+            </form>
+          </div>
+          <div class="glass" style="padding:24px;">
+            <h3 style="margin-top:0;">Change password</h3>
+            <form id="pwForm">
+              <div class="field"><label>Current password</label><input class="input" type="password" name="currentPassword" required /></div>
+              <div class="field"><label>New password</label><input class="input" type="password" name="newPassword" required /></div>
+              <button class="btn btn-primary">Change password</button>
+            </form>
+          </div>
+        </div>`;
+      $('#profForm').addEventListener('submit', async (e) => { e.preventDefault(); const b = Object.fromEntries(new FormData(e.target).entries()); try { const r = await api('customer/profile', { method: 'POST', body: b }); CURRENT_USER = r.user; toast('Profile updated', 'success'); } catch (err) { toast(err.message, 'error'); } });
+      $('#pwForm').addEventListener('submit', async (e) => { e.preventDefault(); const b = Object.fromEntries(new FormData(e.target).entries()); try { await api('customer/change-password', { method: 'POST', body: b }); toast('Password changed', 'success'); e.target.reset(); } catch (err) { toast(err.message, 'error'); } });
+    }
+  } catch (e) { el.innerHTML = `<p style="color:#f87171;">${e.message}</p>`; }
+}
+
+function statBox(label, val, ico) {
+  return `<div class="glass tilt" style="padding:24px;"><div style="font-size:24px;margin-bottom:4px;">${ico}</div><div style="font-size:32px;font-weight:800;" class="gradient-text">${val}</div><div class="text-muted" style="font-size:13px;">${label}</div></div>`;
+}
+function ordersTable(orders) {
+  if (!orders.length) return '<p class="text-muted">No orders yet.</p>';
+  return `<table class="table"><thead><tr><th>Order</th><th>Package</th><th>Total</th><th>Status</th><th>Date</th></tr></thead><tbody>` +
+    orders.map(o => `<tr><td>${o.orderNumber}</td><td>${o.pricing?.package?.name || '—'}</td><td>$${fmt(o.pricing?.grandTotal || 0)}</td><td><span class="pill pill-${o.status}">${o.status.replace('_',' ')}</span></td><td>${fmtDate(o.createdAt)}</td></tr>`).join('') + `</tbody></table>`;
+}
+
+init();
+</script>
+</body>
+</html>
